@@ -1,15 +1,15 @@
 #!/usr/local/bin/python3.4
 # -*- coding: utf-8 -*-
-
+#
 # A simple Telegram bot (via getUpdates), crawling newstickers of the satirical
 # news si www.postillon.de; answering always with the newest newstickers.
 # Copyright (c) 2015 Robert Greinacher, development@robert-greinacher.de
-
-# This program expects a 'config.py' file in the same directory,
-# containing the following lines:
 #
-# BOT_USERNAME = 'PostillonBot'
-# AUTH_TOKEN = ''
+# This program expects a 'config.py' file in the same directory.
+# Rename the 'example_config.py' to 'config.py' and enter values
+# according to your Telegram bot.
+
+
 
 import config
 import urllib.parse
@@ -17,6 +17,7 @@ import urllib.request
 import json
 import argparse
 import sys
+from dataManager import DataManager
 from postillonCrawler import PostillonCrawler
 from daemonize import Daemonize
 from time import sleep
@@ -25,7 +26,7 @@ from time import sleep
 
 # defining constants and globals:
 BE_VERBOSE = False
-KNOWN_COMMANDS = ['/news', '/help', '/description']
+KNOWN_COMMANDS = ['/news', '/stats', '/help', '/description']
 API_URL_BASE = 'https://api.telegram.org/bot'
 API_URL = API_URL_BASE + config.AUTH_TOKEN
 API_POLL_INTERVAL = 1
@@ -36,17 +37,21 @@ API_CALL_SEND_MESSAGE = 'sendMessage'
 
 class TelegramPostillonBot:
   def __init__(self):
-    self.postillonCrawler = PostillonCrawler(verbosity = BE_VERBOSE)
-    self.last_update_id = 0
+    self.postillon_crawler = PostillonCrawler(verbosity = BE_VERBOSE)
+    self.data_manager = DataManager()
+    self.last_request_id = 0
 
-    self.get_update_loop()
+    self.start_polling_loop()
 
-  def get_update_loop(self):
-    if BE_VERBOSE: print('start getUpdates loop...')
+  def cleanup(self):
+    self.data_manager.cleanup()
+
+  def start_polling_loop(self):
+    if BE_VERBOSE: print('start polling loop...')
     while True:
       try:
         parameters = {
-          'offset': self.last_update_id + 1,
+          'offset': self.last_request_id + 1,
           'timeout': 1
         }
         requests = self.perform_api_call(API_CALL_GET_UPDATES, parameters)
@@ -56,21 +61,26 @@ class TelegramPostillonBot:
             chat_id, command = self.parse_message_object(request['message'])
 
             if command in KNOWN_COMMANDS:
+              if BE_VERBOSE:
+                print('received "', command, '" from chat_id ', chat_id)
               self.respond_to_request(chat_id, command)
 
-            if request['update_id'] > self.last_update_id:
-              self.last_update_id = request['update_id']
+            if request['update_id'] > self.last_request_id:
+              self.last_request_id = request['update_id']
 
         else:
-          if BE_VERBOSE: print('bot_requests equals False; sleeping')
+          if BE_VERBOSE:
+            print('no requests, wait for ' + str(API_POLL_INTERVAL) + 's')
           sleep(API_POLL_INTERVAL)
 
       except KeyboardInterrupt:
         if BE_VERBOSE: print('Terminate bot because of keyboard interruption')
+        self.cleanup()
         sys.exit(0)
 
       except:
         print('Uncatched error in run loop; terminating bot!')
+        self.cleanup()
         sys.exit(0)
 
   def perform_api_call(self, function, parameters={}):
@@ -101,22 +111,16 @@ class TelegramPostillonBot:
     chat_id = -1
     command = ''
 
+    # save the received message to the DB
+    self.data_manager.new_message(message)
+
     if 'chat' in message:
       chat_id = message['chat']['id']
-
-      if BE_VERBOSE:
-        user_or_group = message['chat']
-        if 'title' in user_or_group:
-          print('received message from group: ' + user_or_group['title'])
-        elif 'first_name' in user_or_group:
-          print('received message from user: ' + user_or_group['first_name'])
-
     elif BE_VERBOSE:
       print('no chat object in responded message. \
         Unable to identify user or group to respond to.')
 
     if 'text' in message:
-      if BE_VERBOSE: print('received message: ' + message['text'])
       command = message['text']
 
     return chat_id, command
@@ -124,20 +128,25 @@ class TelegramPostillonBot:
   def respond_to_request(self, chat_id, command):
     data = {'chat_id': chat_id}
     if command == KNOWN_COMMANDS[0]:
-      data['text'] = self.create_newsticker_response()
       if BE_VERBOSE: print('responding with newsticker')
+      self.postillon_crawler.check_for_updates()
+      data['text'] = self.data_manager.get_newsticker_for_chat(chat_id)
+    elif command == KNOWN_COMMANDS[1]:
+      if BE_VERBOSE: print('responding with statistics')
+      chats, newsticker, requests = self.data_manager.get_stistic()
+      data['text'] = 'I answered ' + str(requests) + ' requests from '
+      data['text'] += str(chats) + ' people and I know '
+      data['text'] += str(newsticker) + ' headlines!'
     else:
-      data['text'] = self.create_information_respnse()
       if BE_VERBOSE: print('responding with help text')
+      data['text'] = self.create_information_respnse()
 
     self.perform_api_call(API_CALL_SEND_MESSAGE, data)
 
-  def create_newsticker_response(self):
-    return self.postillonCrawler.get_next_newsticker()
-
   def create_information_respnse(self):
     return '++++ Unofficial Postillon bot: \
-      Use "/news" to get a new newsticker ++++'
+      Use "/news" to get a new newsticker headline or \
+      "/stats" to get an usage statistic ++++'
 
 
 

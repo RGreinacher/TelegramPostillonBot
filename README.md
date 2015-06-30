@@ -11,15 +11,19 @@ Because the Postillon newsticker is hilarious.
 
 ### How?
 
-*Telegram Postillon Bot* is designed to work as a [Telegram bot](https://core.telegram.org/bots), so you can send `/news` to it and it will respond with one of the newest newsticker headlines.
+*Telegram Postillon Bot* is designed to work as a [Telegram bot](https://core.telegram.org/bots), so you can send `/news` to it and it will respond with one of the newest newsticker headlines. You also can ask it about some statistics by sending `/stats`.
 
 You can do so by making a new conversation with `@PostillonBot` or add it to an existing group chat.
 
 ### What?
 
-Postillon newsticker headlines are mostly gags in german lang. This bot makes it easy to stay up to date with the newest headlines by crawling the postillon newsticker website every 30 minutes and answering them to Telegram chats.
+Postillon newsticker headlines are mostly gags in german lang. This bot makes it easy to stay up to date with the newest headlines by crawling the postillon newsticker website every two hours and answering them to Telegram chats.
 
 Mainly this is a demo using the new Telegram bot API in Python3. It is made for hands-on reasons as well as providing a basis for your own bot ideas.
+
+### Online status of the bot
+
+Currently I'm not permanently hosting a server for this bot. Thats the reason why somtimes your requests may be unanswered. Go ahead and host your own!
 
 ***
 
@@ -37,18 +41,9 @@ Using python3 you start the bot with the following command:
 
 `python3 telegramPostillonBot.py`
 
-Make sure all of the following packages are available for import:
+The script will generate a SQLite DB, so the permission of the folder you are executing in have to be appropriate. Make sure the following packages are installed and available for import:
 
-- urllib3
-- urllib.parse
-- urllib.request
-- json
-- argparse
-- sys
-- re
-- hashlib
-- time
-- datetime
+- urllib3 (`pip3 install urllib3`)
 - daemonize (`pip3 install daemonize`)
 
 This script provides some arguments like a verbose mode and an option to set the API polling interval.
@@ -71,28 +66,26 @@ Is pretty much self-explanatory. The file of interest is the `telegramPostillonB
 
 ## Change the data source - what is Postillon?!
 
-You can easily substitute the Postillon Newsticker with a data source you like, just have a look at `respond_to_request()`. To be exact on this, have a look at the `create_newsticker_response()` method.
+You can easily substitute the Postillon Newsticker with a data source you like, just have a look at `respond_to_request()`. This is the only line where the code is Postillon specific (this and the `DataManager()` class; it sores the headlines - but this should not be a problem if you want to play around with the basic Telegram bot API structure).
 
 ## TODO
 
-The `PostillonCrawler()` class is a relict of an old quote-of-the-day server I did years ago. I will update and clean it up if there is some time left. Help me, if you like :)
-
 - use BeautifulSoup to extract the Postillon newsticker
-- recognize an ID of the `chat_id` who is requesting to avoid the global "current-headline-pointer"
 - Provide a webserver interface for enabling Telegram's webhook service
 
 ***
 
 # OpenSource & Inspiration:
 
-Of course thank you Postillon for your great work!
+Thank you Postillon for your great work! And thank you Telegram for your messenger and the bot API!
+
 *Telegram Postillon Bot* got inspiration from the following OpenSource project:
 
 - [OmNomNom](https://github.com/ekeih/OmNomNom), a Telegram bot serving the current menus of TU Berlin cantines.
 
 ## Contribution & Contributors
 
-I'd love to see your ideas for improving this project! The best way to contribute is by submitting a pull request or a [new Github issue](https://github.com/RGreinacher/SleepServer/issues/new). :octocat:
+I'd love to see your ideas for improving this project! The best way to contribute is by submitting a pull request or a [new Github issue](https://github.com/RGreinacher/TelegramPostillonBot/issues/new). :octocat:
 
 ***
 

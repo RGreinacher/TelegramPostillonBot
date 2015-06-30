@@ -21,26 +21,19 @@ import re
 import sys
 import hashlib
 import datetime
+from dataManager import DataManager
 
 
 
 # defining constants and globals:
 BE_VERBOSE = False
-POSTILLON_CRAWLING_INTERVAL = 60 * 30
-
-
-
-class Headline:
-  def __init__(self, headline):
-    self.headline = headline
-
-  def __str__(self):
-    return "++++ {} ++++\n".format(self.headline.decode('UTF-8'))
+POSTILLON_CRAWLING_INTERVAL = 60 * 60 * 2
 
 
 
 class PostillonCrawler:
   def __init__(self, verbosity = False):
+    self.data_manager = DataManager()
     self.last_update_timestamp = 0
     self.latest_headline_hash = 0
     self.headlines = []
@@ -50,13 +43,40 @@ class PostillonCrawler:
     self.update_newsticker()
 
   def get_next_newsticker(self):
+    self.check_for_updates()
+    return next(self.headlines)
+
+  def check_for_updates(self):
     offset = self.get_current_timestamp() - self.last_update_timestamp
     if offset > POSTILLON_CRAWLING_INTERVAL:
       self.update_newsticker()
-    return next(self.headlines)
 
   def update_newsticker(self):
     if BE_VERBOSE: print("PostillonCrawler: update newsticker")
+
+    news_list = self.get_newsticker_rows()
+    if news_list == []:
+      return False
+
+    self.last_update_timestamp = self.get_current_timestamp()
+    testHash = hashlib.md5(news_list[0]).hexdigest()
+    if self.latest_headline_hash == testHash:
+      return False
+
+    # create new array of headline objects
+    self.headlines = [self.ticker_formatter(line) for line in news_list]
+
+    # save the new newsticker to the DB
+    self.data_manager.new_newsticker(self.headlines)
+
+    # update headline hash to differenciate newsticker
+    self.latest_headline_hash = testHash
+
+    if BE_VERBOSE: print('PostillonCrawler: ',
+      datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+      ' headlines are up to date')
+
+  def get_newsticker_rows(self):
     http = urllib3.PoolManager()
 
     try:
@@ -74,29 +94,16 @@ class PostillonCrawler:
       news_list = re.findall(
         '\+\+\+\+\ (.*?)\ \+\+\+\+'.encode(self.web_encoding), text)
 
-    except AttributeError:
-      if BE_VERBOSE: print("Can\'t get any headlines from Postillon! \
-        Error handling would be great!")
-      sys.exit(0)
+    except:
+      if BE_VERBOSE: print("ERROR: can\'t get any headlines from Postillon!")
+      return []
 
-    self.last_update_timestamp = self.get_current_timestamp()
-    testHash = hashlib.md5(news_list[0]).hexdigest()
-    if self.latest_headline_hash == testHash:
-      return
+    return news_list
 
-    def headline_converter():
-      while 1:
-        for headline in headlines:
-          yield str(headline)
+# PRAGMA MARK: - helper
 
-    # create array ob headline objects
-    headlines = [Headline(line) for line in news_list]
-    self.headlines = headline_converter()
-    self.latest_headline_hash = testHash
-
-    if BE_VERBOSE: print('PostillonCrawler: ',
-      datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-      ' headlines are up to date')
+  def ticker_formatter(self, news_row):
+      return "++++ {} ++++\n".format(news_row.decode('UTF-8'))
 
   def get_current_timestamp(self):
     now = datetime.datetime.now()
