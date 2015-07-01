@@ -27,6 +27,7 @@ from time import sleep
 # defining constants and globals:
 BE_VERBOSE = False
 KNOWN_COMMANDS = ['/news', '/stats', '/help', '/description']
+ORIGINATOR_REFERENCE = '(Quelle: der Postillon)'
 API_URL_BASE = 'https://api.telegram.org/bot'
 API_URL = API_URL_BASE + config.AUTH_TOKEN
 API_POLL_INTERVAL = 1
@@ -131,6 +132,7 @@ class TelegramPostillonBot:
       if BE_VERBOSE: print('responding with newsticker')
       self.postillon_crawler.check_for_updates()
       data['text'] = self.data_manager.get_newsticker_for_chat(chat_id)
+      data['text'] += ORIGINATOR_REFERENCE
     elif command == KNOWN_COMMANDS[1]:
       if BE_VERBOSE: print('responding with statistics')
       chats, newsticker, requests = self.data_manager.get_stistic()
